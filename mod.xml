@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <data name="Rev:Resupply+" author="Bredroll" description="
 
-WIP Barge rework
+Allow the carrier to pick up cargo directly from islands.
 
-Requires the Revolution Mod.
+If your carrier is within 2km of an island and you have placed an inventory order, transfer
+cargo, weapons and fuel from the island to your carrier automatically.
 
+Requires Revolution 1.4 and Tactical Operations Centre
 Uses library_custom_2.lua
 
 ">
