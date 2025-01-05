@@ -41,6 +41,28 @@ function custom_pickup_barge(barge, carrier, tile)
 end
 
 
+function get_island_has_requested_cargo(vehicle, tile)
+	-- iterate through the cargo requests for this carrier, return true if the island has any of these items
+	for _, category in pairs(g_item_categories) do
+		if #category.items > 0 then
+			for _, item in pairs(category.items) do
+				if update_get_resource_item_hidden(item.index) == false then
+					local order_count = vehicle:get_inventory_order(item.index)
+					if order_count > 0 then
+						local store_count = tile:get_facility_inventory_count(item.index)
+						if store_count > 0 then
+							return true
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return false
+end
+
+
 function custom_inventory_update(screen_w, screen_h, ticks)
 	if g_screen_name == "screen_inv_r_large" then
 		_update(screen_w, screen_h, ticks)
@@ -76,11 +98,18 @@ function custom_inventory_update(screen_w, screen_h, ticks)
 							--print("load")
 							-- does the island have anything that this carrier wants,
 							-- set a pickup and a drop
-							custom_pickup_barge(barge, screen_vehicle, tile)
+							if get_island_has_requested_cargo(screen_vehicle, tile) then
+								custom_pickup_barge(barge, screen_vehicle, tile)
+							else
+								-- we dont want anything, remove the barge
+								screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
+							end
 						end
 					else
-						-- attach a barge
-						screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
+						-- attach a barge if the island has stuff we want
+						if get_island_has_requested_cargo(screen_vehicle, tile) then
+							screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
+						end
 					end
 				else
 					-- out of range, remove the barge when the barge is empty
