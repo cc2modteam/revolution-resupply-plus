@@ -83,7 +83,7 @@ function custom_inventory_update(screen_w, screen_h, ticks)
 				local tile = get_nearest_island_tile(pos:x(), pos:y())
 				local tile_pos = tile:get_position_xz()
 				local dist = vec2_dist(pos, tile_pos)
-				-- print(g_screen_name, tile:get_name(), get_ship_name(screen_vehicle), dist, elapsed, ticks)
+
 				if screen_team == tile:get_team_control() and dist < 1900 then
 					-- we are in resupply range
 					-- attach the barge if there are resupply requests and this island has anything
