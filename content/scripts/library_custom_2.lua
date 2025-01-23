@@ -81,7 +81,8 @@ function custom_inventory_update(screen_w, screen_h, ticks)
 				end
 				local pos = screen_vehicle:get_position_xz()
 				local tile = get_nearest_island_tile(pos:x(), pos:y())
-				local tile_pos = tile:get_position_xz()
+				-- local tile_pos = tile:get_position_xz()
+				local tile_pos = get_command_center_position(tile:get_id())
 				local dist = vec2_dist(pos, tile_pos)
 
 				if screen_team == tile:get_team_control() and dist < 1900 then
