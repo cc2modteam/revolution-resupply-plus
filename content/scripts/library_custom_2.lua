@@ -67,25 +67,42 @@ function custom_inventory_update(screen_w, screen_h, ticks)
 	if g_screen_name == "screen_inv_r_large" then
 		_update(screen_w, screen_h, ticks)
 		update_ui_text(screen_w - 60, screen_h - 13, "Resupply+", 64, 0, color_status_dark_yellow, 0)
-		local now = update_get_logic_tick()
-		local elapsed = now - g_last_resuply_call
-		if elapsed >= g_crr_barge_interval and get_is_lead_team_peer() then
-			g_last_resuply_call = now
-			local screen_vehicle = update_get_screen_vehicle()
-			if screen_vehicle and screen_vehicle:get() then
-				local screen_team = update_get_screen_team_id()
+
+		local screen_vehicle = update_get_screen_vehicle()
+		if screen_vehicle and screen_vehicle:get() then
+			local pos = screen_vehicle:get_position_xz()
+			local tile = get_nearest_island_tile(pos:x(), pos:y())
+			local screen_team = update_get_screen_team_id()
+			local tile_pos = get_command_center_position(tile:get_id())
+			local tile_owned = screen_team == tile:get_team_control()
+			local dist = vec2_dist(pos, tile_pos)
+			local resupply_max_range = 1900
+
+			if dist < 2500 then
+				-- print resupply range
+				local range_color = color_status_dark_red
+				local cc_dist = string.format("%4dm", math.floor(dist))
+				if tile_owned then
+					range_color = color_status_dark_green
+					if dist < resupply_max_range then
+						range_color = color_status_dark_yellow
+					end
+				end
+				update_ui_text(screen_w - 36, screen_h - 25, cc_dist, 64, 0, range_color, 0)
+			end
+
+			local now = update_get_logic_tick()
+			local elapsed = now - g_last_resuply_call
+			if elapsed >= g_crr_barge_interval and get_is_lead_team_peer() then
+				g_last_resuply_call = now
+
 				local barge_id = screen_vehicle:get_attached_vehicle_id(g_barge_bay)
 				local barge = nil
 				if barge_id then
 					barge = update_get_map_vehicle_by_id(barge_id)
 				end
-				local pos = screen_vehicle:get_position_xz()
-				local tile = get_nearest_island_tile(pos:x(), pos:y())
-				-- local tile_pos = tile:get_position_xz()
-				local tile_pos = get_command_center_position(tile:get_id())
-				local dist = vec2_dist(pos, tile_pos)
 
-				if screen_team == tile:get_team_control() and dist < 1900 then
+				if tile_owned and dist < resupply_max_range then
 					-- we are in resupply range
 					-- attach the barge if there are resupply requests and this island has anything
 
