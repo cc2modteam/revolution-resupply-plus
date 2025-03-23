@@ -63,21 +63,6 @@ function get_island_has_requested_cargo(vehicle, tile)
 end
 
 
-function custom_inventory_update(screen_w, screen_h, ticks)
-	if g_tab_barges and g_tabs[4] == nil then
-		local screen_vehicle = update_get_screen_vehicle()
-		if screen_vehicle and screen_vehicle:get() then
-			if screen_vehicle:get_definition_index() == e_game_object_type.chassis_carrier then
-				g_tabs.resupply = 4
-				g_tabs[4] = g_tab_resupply
-			end
-		end
-	end
-
-	return false
-end
-
-
 function rsp_render(screen_w, screen_h, x, y, w, h, is_tab_active, screen_vehicle)
 	local ui = g_ui
 	local now = update_get_logic_tick()
@@ -248,3 +233,19 @@ g_tab_resupply = {
 	input_scroll = rsp_input_scroll,
 	is_overlay = false
 }
+
+-- insertion code
+real_begin_load = begin_load
+inserted_resupply_plus = false
+
+function begin_load()
+	real_begin_load()
+	if not inserted_resupply_plus then
+		inserted_resupply_plus = true
+		if g_tab_barges and g_tabs[4] == nil then
+			-- this is the inventory screen
+			g_tabs.resupply = 4
+			g_tabs[4] = g_tab_resupply
+		end
+	end
+end
