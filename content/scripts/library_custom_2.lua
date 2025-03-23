@@ -181,7 +181,9 @@ function rsp_render(screen_w, screen_h, x, y, w, h, is_tab_active, screen_vehicl
 			if ui:button(btn_msg, barge_btn_enabled, 0) then
 				if barge == nil then
 					-- attach barge and start loading
-					screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
+					if is_local then
+						screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
+					end
 				elseif barge_payload == 0 then
 					-- remove the barge
 					screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
