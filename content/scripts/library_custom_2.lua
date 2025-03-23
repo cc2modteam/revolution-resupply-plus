@@ -6,7 +6,7 @@ end
 
 g_last_resuply_call = 0
 g_barge_bay = 17
-g_crr_barge_interval = 240
+g_crr_barge_interval = 60
 
 function custom_unload_barge(barge, carrier)
 	local wpc = barge:get_waypoint_count()
@@ -64,87 +64,187 @@ end
 
 
 function custom_inventory_update(screen_w, screen_h, ticks)
-	if g_screen_name == "screen_inv_r_large" then
-		_update(screen_w, screen_h, ticks)
-		update_ui_text(screen_w - 60, screen_h - 13, "Resupply+", 64, 0, color_status_dark_yellow, 0)
-
+	if g_tab_barges and g_tabs[4] == nil then
 		local screen_vehicle = update_get_screen_vehicle()
 		if screen_vehicle and screen_vehicle:get() then
-			local pos = screen_vehicle:get_position_xz()
-			local tile = get_nearest_island_tile(pos:x(), pos:y())
-			local screen_team = update_get_screen_team_id()
-			local tile_pos = get_command_center_position(tile:get_id())
-			local tile_owned = screen_team == tile:get_team_control()
-			local dist = vec2_dist(pos, tile_pos)
-			local resupply_max_range = 1900
-
-			if dist < 2500 then
-				-- print resupply range
-				local range_color = color_status_dark_red
-				local cc_dist = string.format("%4dm", math.floor(dist))
-				if tile_owned then
-					range_color = color_status_dark_green
-					if dist < resupply_max_range then
-						range_color = color_status_dark_yellow
-					end
-				end
-				update_ui_text(screen_w - 36, screen_h - 25, cc_dist, 64, 0, range_color, 0)
-			end
-
-			local now = update_get_logic_tick()
-			local elapsed = now - g_last_resuply_call
-			if elapsed >= g_crr_barge_interval and get_is_lead_team_peer() then
-				g_last_resuply_call = now
-
-				local barge_id = screen_vehicle:get_attached_vehicle_id(g_barge_bay)
-				local barge = nil
-				if barge_id then
-					barge = update_get_map_vehicle_by_id(barge_id)
-				end
-
-				if tile_owned and dist < resupply_max_range then
-					-- we are in resupply range
-					-- attach the barge if there are resupply requests and this island has anything
-
-					if barge and barge:get() then
-						local payload = barge:get_inventory_weight()
-						-- if barge has anything aboard, set a drop waypoint
-						if payload > 0 then
-							--print("unload")
-							custom_unload_barge(barge, screen_vehicle)
-						else
-							--print("load")
-							-- does the island have anything that this carrier wants,
-							-- set a pickup and a drop
-							if get_island_has_requested_cargo(screen_vehicle, tile) then
-								custom_pickup_barge(barge, screen_vehicle, tile)
-							else
-								-- we dont want anything, remove the barge
-								screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
-							end
-						end
-					else
-						-- attach a barge if the island has stuff we want
-						if get_island_has_requested_cargo(screen_vehicle, tile) then
-							screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
-						end
-					end
-				else
-					-- out of range, remove the barge when the barge is empty
-					if barge and barge:get() then
-						local payload = barge:get_inventory_weight()
-						if payload == 0 then
-							-- remove the barge
-							screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
-						else
-							-- make sure the barge has a drop off waypoint to this carrier
-							custom_unload_barge(barge, screen_vehicle)
-						end
-					end
-				end
+			if screen_vehicle:get_definition_index() == e_game_object_type.chassis_carrier then
+				g_tabs.resupply = 4
+				g_tabs[4] = g_tab_resupply
 			end
 		end
-		return true
 	end
+
 	return false
 end
+
+
+function rsp_render(screen_w, screen_h, x, y, w, h, is_tab_active, screen_vehicle)
+	local ui = g_ui
+	local now = update_get_logic_tick()
+	update_ui_push_offset(x, y)
+	local is_local = update_get_is_focus_local()
+	ui:begin_window("-", 5, 0, w - 10, h, nil, true, 1)
+	ui:text_basic("Resupply+", color8(255, 255, 0, 128))
+
+	if screen_vehicle and screen_vehicle:get() then
+		local pos = screen_vehicle:get_position_xz()
+		local tile = get_nearest_island_tile(pos:x(), pos:y())
+		local screen_team = update_get_screen_team_id()
+		local tile_pos = get_command_center_position(tile:get_id())
+		local tile_owned = screen_team == tile:get_team_control()
+		local tile_name = get_island_name(tile)
+		ui:text_basic(
+				string.format("%-14s %18s",
+						update_get_loc(e_loc.island),
+						tile_name
+				))
+
+		if tile_owned then
+			local dist = math.floor(vec2_dist(pos, tile_pos))
+			local resupply_max_range = 2200
+			local tile_has_cargo = get_island_has_requested_cargo(screen_vehicle, tile)
+			local dist_col = nil
+			local in_range = false
+			if dist < 2500 then
+				dist_col = color8(255, 255, 0, 64)
+				if dist < resupply_max_range then
+					dist_col = color8(0, 255, 0, 64)
+					in_range = true
+				end
+			end
+			local barge = get_rsp_barge(screen_vehicle)
+			local barge_payload = 0
+			if barge then
+				barge_payload = barge:get_inventory_weight()
+			end
+
+			ui:text_basic(string.format("%32dm", dist), dist_col)
+
+			local barge_btn_enabled = false
+			local btn_msg = "Out of range"
+			local status_msg = "Standby"
+			local status_color = nil
+			if in_range then
+				if not barge then
+					btn_msg = "Begin loading"
+					barge_btn_enabled = true
+				end
+
+				if barge and barge_payload > 0 then
+					btn_msg = "Busy.."
+					status_msg = string.format("Unload %5dkg", math.floor(barge_payload))
+				end
+
+				if barge and barge_payload == 0 then
+					btn_msg = "Cancel loading"
+					barge_btn_enabled = true
+				end
+
+			end
+			local barge_wpc = -1
+			if barge then
+				barge_wpc = barge:get_waypoint_count()
+
+				if now - g_last_resuply_call > g_crr_barge_interval then
+					g_last_resuply_call = now
+					if barge_wpc == 2 then
+						-- barge currently set to do pickup and delivery
+						if barge_payload > 0 then
+							custom_unload_barge(barge, screen_vehicle)
+						end
+					end
+					if barge_wpc == 1 then
+						-- barge is set to unload
+						if barge_payload == 0 then
+							-- its empty, clear waypoints
+							barge:clear_waypoints()
+						end
+					end
+
+					if barge_wpc == 0 then
+						-- barge set to nothing
+						if in_range and tile_has_cargo then
+							-- set pickup
+							custom_pickup_barge(barge, screen_vehicle, tile)
+						end
+					end
+
+					if not in_range and barge_payload == 0 then
+						-- too far and barge is empty, remove it automatically
+						screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
+					end
+
+				end
+			end
+
+			if tile_has_cargo then
+				if in_range then
+					status_msg = "Cargo available"
+					status_color = color8(255, 255, 255, 255)
+					if barge_wpc == 2 then
+						status_msg = "Loading.."
+					elseif barge_wpc == 1 then
+						status_msg = "Unloading.."
+					end
+				end
+			else
+				if barge_payload > 0 then
+					status_msg = "Unloading ..."
+				end
+			end
+			ui:text_basic(status_msg, status_color)
+			if ui:button(btn_msg, barge_btn_enabled, 0) then
+				if barge == nil then
+					-- attach barge and start loading
+					screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, e_game_object_type.chassis_sea_barge)
+				elseif barge_payload == 0 then
+					-- remove the barge
+					screen_vehicle:set_attached_vehicle_chassis(g_barge_bay, -1)
+				end
+			end
+		else
+			ui:text_basic("Hostile Island", color8(255, 0, 0, 128))
+		end
+	end
+
+	ui:end_window()
+	update_ui_pop_offset()
+end
+
+function get_rsp_barge(screen_vehicle)
+	local barge_id = screen_vehicle:get_attached_vehicle_id(g_barge_bay)
+	local b = nil
+	if barge_id then
+		b = update_get_map_vehicle_by_id(barge_id)
+	end
+	if b and b:get() then
+		return b
+	end
+	return nil
+end
+
+function rsp_input_event(input, action)
+	if input == e_input.back then
+        return true
+    end
+    g_ui:input_event(input, action)
+    return false
+end
+
+function rsp_input_pointer(is_hovered, x, y)
+	g_ui:input_pointer(is_hovered, x, y)
+end
+
+function rsp_input_scroll(dy)
+	g_ui:input_scroll(dy)
+end
+
+
+g_tab_resupply = {
+	tab_title = e_loc.upp_load,
+	render = rsp_render,
+	input_event = rsp_input_event,
+	input_pointer = rsp_input_pointer,
+	input_scroll = rsp_input_scroll,
+	is_overlay = false
+}
